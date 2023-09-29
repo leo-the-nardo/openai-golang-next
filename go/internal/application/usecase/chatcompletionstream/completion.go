@@ -1,4 +1,4 @@
-package chat_completion_stream
+package chatcompletionstream
 
 import (
 	"context"
@@ -59,17 +59,7 @@ func (this *ChatCompletionUseCase) Execute(
 	input *ChatCompletionInputDTO,
 	ctx context.Context,
 ) (*ChatCompletionOutputDTO, error) {
-	chat, err := this.chatGateway.FindById(ctx, input.ChatID)
-	if err != nil {
-		if err.Error() == "chat not found" { // not exists flow
-			chat, err = createNewChat(input)
-			err = this.chatGateway.Create(ctx, chat)
-			if err != nil {
-				return nil, errors.New("failed to persist new chat:" + err.Error())
-			}
-		} // unknown error fetch flow
-		return nil, errors.New("failed to fetch chat:" + err.Error())
-	}
+	chat, err := this.getOrCreateChat(input, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -145,6 +135,28 @@ func (this *ChatCompletionUseCase) Execute(
 		UserID:  chat.UserID,
 		Content: fullResponse.String(),
 	}, nil
+}
+
+func (this *ChatCompletionUseCase) getOrCreateChat(
+	input *ChatCompletionInputDTO,
+	ctx context.Context,
+) (*entity.Chat, error) {
+	chat, err := this.chatGateway.FindById(ctx, input.ChatID)
+	if err != nil {
+		return nil, errors.New("failed to get chat by user id:" + err.Error())
+	}
+	if chat == nil {
+		chat, err = createNewChat(input)
+		if err != nil {
+			return nil, errors.New("failed to create new chat:" + err.Error())
+		}
+		err = this.chatGateway.Create(ctx, chat)
+		if err != nil {
+			return nil, errors.New("failed to persist chat:" + err.Error())
+		}
+	}
+	return chat, nil
+
 }
 
 func createNewChat(input *ChatCompletionInputDTO) (*entity.Chat, error) {
