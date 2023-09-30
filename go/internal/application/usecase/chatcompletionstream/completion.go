@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-type ChatCompletionConfigInputDTO struct {
+type ConfigInputDTO struct {
 	Model                string   `json:"model"`
 	ModelMaxTokens       int      `json:"model_max_tokens"`
 	Temperature          float32  `json:"temperature"`
@@ -23,31 +23,31 @@ type ChatCompletionConfigInputDTO struct {
 	InitialSystemMessage string   `json:"initial_system_message"`
 }
 
-type ChatCompletionInputDTO struct {
+type InputDTO struct {
 	ChatID      string `json:"chat_id"`
 	UserID      string `json:"user_id"`
 	UserMessage string `json:"user_message"`
-	Config      *ChatCompletionConfigInputDTO
+	Config      ConfigInputDTO
 }
 
-type ChatCompletionOutputDTO struct {
+type OutputDTO struct {
 	ChatID  string `json:"chat_id"`
 	UserID  string `json:"user_id"`
 	Content string `json:"content"`
 }
 
-type ChatCompletionUseCase struct {
+type UseCase struct {
 	chatGateway  gateway.ChatGateway
 	openAiClient *openai.Client
-	stream       chan ChatCompletionOutputDTO
+	stream       chan OutputDTO
 }
 
 func NewChatCompletionUseCase(
 	chatGateway gateway.ChatGateway,
 	openAiClient *openai.Client,
-	stream chan ChatCompletionOutputDTO,
-) *ChatCompletionUseCase {
-	useCase := &ChatCompletionUseCase{
+	stream chan OutputDTO,
+) *UseCase {
+	useCase := &UseCase{
 		chatGateway:  chatGateway,
 		openAiClient: openAiClient,
 		stream:       stream,
@@ -55,10 +55,10 @@ func NewChatCompletionUseCase(
 	return useCase
 }
 
-func (this *ChatCompletionUseCase) Execute(
-	input *ChatCompletionInputDTO,
+func (this *UseCase) Execute(
+	input *InputDTO,
 	ctx context.Context,
-) (*ChatCompletionOutputDTO, error) {
+) (*OutputDTO, error) {
 	chat, err := this.getOrCreateChat(input, ctx)
 	if err != nil {
 		return nil, err
@@ -108,7 +108,7 @@ func (this *ChatCompletionUseCase) Execute(
 			return nil, errors.New("failed to receive streaming response:" + err.Error())
 		}
 		fullResponse.WriteString(response.Choices[0].Delta.Content)
-		r := ChatCompletionOutputDTO{
+		r := OutputDTO{
 			ChatID:  chat.ID,
 			UserID:  chat.UserID,
 			Content: fullResponse.String(),
@@ -130,15 +130,15 @@ func (this *ChatCompletionUseCase) Execute(
 		return nil, errors.New("failed to save chat:" + err.Error())
 	}
 
-	return &ChatCompletionOutputDTO{
+	return &OutputDTO{
 		ChatID:  chat.ID,
 		UserID:  chat.UserID,
 		Content: fullResponse.String(),
 	}, nil
 }
 
-func (this *ChatCompletionUseCase) getOrCreateChat(
-	input *ChatCompletionInputDTO,
+func (this *UseCase) getOrCreateChat(
+	input *InputDTO,
 	ctx context.Context,
 ) (*entity.Chat, error) {
 	chat, err := this.chatGateway.FindById(ctx, input.ChatID)
@@ -159,7 +159,7 @@ func (this *ChatCompletionUseCase) getOrCreateChat(
 
 }
 
-func createNewChat(input *ChatCompletionInputDTO) (*entity.Chat, error) {
+func createNewChat(input *InputDTO) (*entity.Chat, error) {
 	model := entity.NewModel(input.Config.Model, input.Config.ModelMaxTokens)
 	initialMessage, err := entity.NewMessage("system", input.Config.InitialSystemMessage, model)
 	if err != nil {

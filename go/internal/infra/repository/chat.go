@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"github.com/leo-the-nardo/chatservice/internal/domain/entity"
 	"github.com/leo-the-nardo/chatservice/internal/infra/db"
 	"time"
@@ -54,8 +55,14 @@ func (this *ChatRepository) Create(ctx context.Context, chat *entity.Chat) error
 }
 
 func (this *ChatRepository) FindById(ctx context.Context, id string) (*entity.Chat, error) {
+	if id == "" {
+		return nil, nil
+	}
 	dbChat, err := this.Queries.FindChatById(ctx, id)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	dbMessages, err := this.Queries.FindMessagesByChatId(ctx, id)
@@ -157,20 +164,24 @@ func toEntity(dbChat db.Chat, dbMessages []db.Message, erasedDbMessages []db.Mes
 	var messages []*entity.Message
 	for _, dbMessage := range dbMessages {
 		messages = append(messages, &entity.Message{
-			ID:      dbMessage.ID,
-			Content: dbMessage.Content,
-			Role:    dbMessage.Role,
-			Tokens:  int(dbMessage.Tokens)},
+			ID:        dbMessage.ID,
+			Content:   dbMessage.Content,
+			Role:      dbMessage.Role,
+			CreatedAt: dbMessage.CreatedAt,
+			Model:     entity.NewModel(dbMessage.Model, int(dbChat.ModelMaxTokens)),
+			Tokens:    int(dbMessage.Tokens)},
 		)
 	}
 
 	var erasedMessages []*entity.Message
 	for _, dbMessage := range erasedDbMessages {
 		erasedMessages = append(erasedMessages, &entity.Message{
-			ID:      dbMessage.ID,
-			Content: dbMessage.Content,
-			Role:    dbMessage.Role,
-			Tokens:  int(dbMessage.Tokens)},
+			ID:        dbMessage.ID,
+			Content:   dbMessage.Content,
+			Role:      dbMessage.Role,
+			CreatedAt: dbMessage.CreatedAt,
+			Model:     entity.NewModel(dbMessage.Model, int(dbChat.ModelMaxTokens)),
+			Tokens:    int(dbMessage.Tokens)},
 		)
 	}
 
