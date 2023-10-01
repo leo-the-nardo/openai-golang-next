@@ -22,3 +22,7 @@ Content-Type: application/json
 {
   "message": "i'm testing the api"
 }
+
+###
+@messageId = 944ed96e-724c-4aac-86e8-b84e50d98bd8
+GET http://localhost:3000/api/messages/{{messageId}}/sse

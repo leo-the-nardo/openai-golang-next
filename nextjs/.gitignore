@@ -40,3 +40,7 @@ bash.sh
 .env
 
 .docker
+
+.swc
+
+route_example.txt
