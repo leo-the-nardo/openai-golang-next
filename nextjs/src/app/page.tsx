@@ -1,113 +1,317 @@
-import Image from 'next/image'
+"use client"
 
-export default function Home() {
+import useSWR from "swr"
+import useSWRSubscription from "swr/subscription"
+import ClientHttp, { fetcher } from "@/http/http"
+import { Chat as PrismaChat, Message } from "@prisma/client"
+import { useRouter, useSearchParams } from "next/navigation"
+import { FormEvent, useEffect, useLayoutEffect, useState } from "react"
+import { PlusIcon } from "@/app/components/PlusIcon"
+import { MessageIcon } from "@/app/components/MessageIcon"
+import { ArrowRightIcon } from "@/app/components/ArrowRightIcon"
+import Image from "next/image"
+import { UserIcon } from "@/app/components/UserIcon"
+import { marked } from "marked"
+import hljs from "highlight.js"
+import DOMPurify from "dompurify"
+
+const renderer = new marked.Renderer()
+
+renderer.code = function (code, language) {
+  const validLanguage = hljs.getLanguage(language!) ? language : "plaintext"
+  const highlightedCode = hljs.highlight(code, {
+    language: validLanguage!,
+  }).value
+  return `<pre><code class="hljs ${validLanguage}">${highlightedCode}</code></pre>`
+}
+marked.use({ renderer })
+type Chat = PrismaChat & {
+  messages: [Message] // only the first message
+}
+
+function ChatItemError({ children }: { children: any }) {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">src/app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{' '}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
+    <li className="w-full bg-gray-800 text-gray-100">
+      <div className="m-auto flex flex-row items-start space-x-4 py-6 md:max-w-2xl lg:max-w-xl xl:max-w-3xl">
+        <Image src="/vercel.svg" width={30} height={30} alt="" />
+        <div className="relative flex w-[calc(100%-115px)] flex-col gap-1">
+          <span className="text-red-500">Ops! Ocorreu um erro: {children}</span>
         </div>
       </div>
+    </li>
+  )
+}
 
-      <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 before:lg:h-[360px] z-[-1]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
+const keyDownHandler = (event: KeyboardEvent) => {
+  if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault()
+  }
+}
+const Loading = () => (
+  <span className="h-6 w-[5px] animate-spin rounded bg-white"></span>
+)
+
+function ChatItem({
+  content,
+  is_from_bot,
+  loading = false,
+}: {
+  content: string
+  is_from_bot: boolean
+  loading?: boolean
+}) {
+  const background = is_from_bot ? "bg-gray-800" : "bg-gray-600"
+
+  return (
+    <li className={`w-full text-gray-100 ${background}`}>
+      <div className="flex-col">
+        <div className="m-auto flex flex-row items-start space-x-4 py-6 md:max-w-2xl lg:max-w-xl xl:max-w-3xl">
+          {is_from_bot ? (
+            <Image
+              src="https://github.com/leo-the-nardo.png"
+              width={30}
+              height={30}
+              alt=""
+            />
+          ) : (
+            <UserIcon className="start relative flex w-[30px] flex-col" />
+          )}
+
+          <div
+            className="relative flex w-[calc(100%-115px)] flex-col gap-1 break-words transition duration-100 ease-linear"
+            dangerouslySetInnerHTML={{
+              __html: DOMPurify.sanitize(
+                marked(content, { breaks: true }) as string,
+              ), //sanitized
+            }}
+          />
+        </div>
+        {loading && (
+          <div className="flex items-center justify-center pb-2">
+            <Loading />
+          </div>
+        )}
       </div>
+    </li>
+  )
+}
 
-      <div className="mb-32 grid text-center lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Docs{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
+export default function Home() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const chatIdParam = searchParams.get("id")
+  const [chatId, setChatId] = useState<string | null>(chatIdParam)
+  const [questionId, setQuestionId] = useState<string | null>(null)
+  const { data: chats, mutate: mutateChats } = useSWR<Chat[]>( // GET/api/chats
+    "chats",
+    fetcher,
+    { fallbackData: [], revalidateOnFocus: false },
+  )
+  const { data: messages, mutate: mutateMessages } = useSWR<Message[]>(
+    chatId ? `chats/${chatId}/messages` : null, // GET/api/chats/:id/messages only fetch if chatId is not null
+    fetcher,
+    { fallbackData: [], revalidateOnFocus: false },
+  )
+  const { data: messageLoading, error: errorMessageLoad } = useSWRSubscription(
+    questionId ? `/api/messages/${questionId}/sse` : null, // GET /api/messages/:id/sse only connect if questionId is not null
+    (path, { next }) => {
+      console.log(`useSWRSubscription -> init event source`, path)
+      const eventSource = new EventSource(path)
+      eventSource.onmessage = (event) => {
+        console.log(`useSWRSubscription -> onmessage`, event)
+        const message = JSON.parse(event.data)
+        next(null, message.content)
+        // mutateMessages((messages) => [...messages!, message], false)
+      }
+      eventSource.onerror = (event) => {
+        console.log(`useSWRSubscription -> onerror`, event)
+        eventSource.close()
+        // @ts-ignore
+        next(event.data, null)
+      }
+      eventSource.addEventListener("end", (event) => {
+        console.log(`useSWRSubscription -> on end`, event)
+        const newMessage = JSON.parse(event.data)
+        mutateMessages((messages) => [...messages!, newMessage], false)
+        next(null, null)
+        eventSource.close()
+      })
+      return () => {
+        console.log(`useSWRSubscription -> close event source`)
+        eventSource.close()
+      }
+    },
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      fallbackData: null,
+    },
+  )
 
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Learn{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
+  useEffect(() => {
+    setChatId(chatIdParam)
+    console.log(`useEffect -> chatIdParam ${chatIdParam}`)
+  }, [chatIdParam])
 
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Templates{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Explore starter templates for Next.js.
-          </p>
-        </a>
+  // Add event listeners
+  useEffect(() => {
+    const textarea = document.querySelector("#message") as HTMLTextAreaElement
+    textarea.addEventListener("keydown", keyDownHandler)
+    textarea.addEventListener("keyup", keyUpHandler)
+    return () => {
+      textarea.removeEventListener("keydown", keyDownHandler)
+      textarea.removeEventListener("keyup", keyUpHandler)
+    }
+  }, [])
+  useLayoutEffect(() => {
+    console.log("messageLoading", messageLoading)
+    if (!messageLoading) return
+    const chatting = document.querySelector("#chatting") as HTMLUListElement
+    chatting.scrollTop = chatting.scrollHeight
+  }, [messageLoading])
 
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
+  const keyUpHandler = (event: KeyboardEvent) => {
+    const textArea = event.target as HTMLTextAreaElement
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault()
+      const form = document.querySelector("form") as HTMLFormElement
+      const buttonSubmit = form.querySelector(
+        "button[type=submit]",
+      ) as HTMLButtonElement
+      form.requestSubmit(buttonSubmit)
+    }
+    if (textArea.scrollHeight >= 200) {
+      textArea.style.overflowY = "scroll"
+    } else {
+      textArea.style.overflowY = "hidden"
+      textArea.style.height = "auto"
+      textArea.style.height = textArea.scrollHeight + "px"
+    }
+  }
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (messageLoading) return
+    const textarea = event.currentTarget.querySelector(
+      "textarea",
+    ) as HTMLTextAreaElement
+    const textareaContent = textarea.value
+    if (textareaContent.trim() === "") return
+    const isNewChat = !chatId
+    if (isNewChat) {
+      console.log("on submit -> new chat")
+      // POST /api/chats
+      const createdChat: Chat = await ClientHttp.post("chats", {
+        message: textareaContent,
+      })
+      console.log(JSON.stringify(createdChat, null, 2))
+      const firstQuestion = createdChat.messages[0]
+      mutateChats([createdChat, ...chats!], false)
+      setChatId(createdChat.id)
+      setQuestionId(firstQuestion.id)
+      textarea.value = ""
+      return
+    }
+    // POST /api/chats/:id/messages
+    const question: Message = await ClientHttp.post(
+      `chats/${chatId}/messages`,
+      {
+        message: textareaContent,
+      },
+    )
+    mutateMessages([...messages!, question], false)
+    setQuestionId(question.id)
+    textarea.value = ""
+  }
+
+  function newChatHandler() {
+    router.push("/")
+    setChatId(null)
+    setQuestionId(null)
+  }
+
+  return (
+    <div className="relative flex h-full w-full overflow-hidden">
+      {/* -- sidebar -- */}
+      <div className="flex h-screen w-[300px] flex-col bg-gray-900 p-2">
+        {/* -- button new chat -- */}
+        <button
+          className="mb-1 flex cursor-pointer gap-3 rounded border border-white/20 p-3 text-sm text-white transition-colors duration-200 hover:bg-gray-500/10"
+          onClick={newChatHandler}
         >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Deploy{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
+          <PlusIcon className="h-5 w-5" />
+          New chat
+        </button>
+        {/* -- end button new chat -- */}
+        {/* -- chats -- */}
+        <div className="-mr-2 flex-grow overflow-hidden overflow-y-auto">
+          {chats?.map((chat, key) => (
+            <div className="mr-2 pb-2 text-sm text-gray-100" key={key}>
+              <button
+                className="group flex w-full cursor-pointer gap-3 rounded p-3 hover:bg-[#3f4679] hover:pr-4"
+                onClick={() => router.push(`/?id=${chat.id}`)}
+              >
+                <MessageIcon className="h-5 w-5" />
+                <div className="relative max-h-5 w-full overflow-hidden break-all text-left">
+                  {chat.messages[0].content}
+                  <div className="absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-gray-900 group-hover:from-[#3f4679]"></div>
+                </div>
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
-    </main>
+      {/* -- end sidebar -- */}
+
+      {/* -- main content */}
+      <div className="relative flex-1 flex-col">
+        <ul id="chatting" className="h-screen overflow-y-auto bg-gray-800">
+          {messages?.map((message, key) => (
+            <ChatItem
+              key={key}
+              content={message.content}
+              is_from_bot={message.is_from_bot}
+            />
+          ))}
+          {messageLoading && (
+            <ChatItem
+              content={messageLoading}
+              is_from_bot={true}
+              loading={true}
+            />
+          )}
+          {errorMessageLoad && (
+            <ChatItemError>{errorMessageLoad}</ChatItemError>
+          )}
+
+          <li className="h-36 bg-gray-800"></li>
+        </ul>
+
+        <div className="absolute bottom-0 w-full !bg-transparent bg-gradient-to-b from-gray-800 to-gray-950">
+          <div className="mx-auto mb-6 max-w-3xl">
+            <form id="form" onSubmit={onSubmit}>
+              <div className="relative flex flex-col rounded bg-gray-700 py-3 pl-4 text-white">
+                <textarea
+                  id="message"
+                  tabIndex={0}
+                  rows={1}
+                  placeholder="Digite sua pergunta"
+                  className="resize-none bg-transparent pl-0 pr-14 outline-none"
+                  defaultValue="Gere uma classe de produto em JavaScript"
+                ></textarea>
+                <button
+                  type="submit"
+                  className="absolute bottom-2.5 top-1 rounded text-gray-400 hover:bg-gray-900 hover:text-gray-400 md:right-4"
+                  disabled={messageLoading}
+                >
+                  <ArrowRightIcon className="text-white-500 w-8" />
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      {/* -- main content */}
+    </div>
   )
 }

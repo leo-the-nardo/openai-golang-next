@@ -12,11 +12,16 @@
     "@grpc/grpc-js": "^1.9.13",
     "@grpc/proto-loader": "^0.7.10",
     "@prisma/client": "^5.7.1",
+    "dompurify": "^3.0.6",
+    "highlight.js": "^11.9.0",
+    "marked": "^11.1.1",
     "next": "14.0.4",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "swr": "^2.2.4"
   },
   "devDependencies": {
+    "@types/dompurify": "^3.0.5",
     "@types/jest": "^29.5.11",
     "@types/node": "^20",
     "@types/react": "^18",
@@ -26,6 +31,7 @@
     "eslint-config-next": "14.0.4",
     "jest": "^29.7.0",
     "postcss": "^8",
+    "prettier-plugin-tailwindcss": "^0.5.10",
     "tailwindcss": "^3.3.0",
     "ts-node": "^10.9.2",
     "typescript": "^5"

@@ -33,7 +33,6 @@ export async function GET(
   })
   let messageReceived: MessageReceived = null
   grpcStream.on("data", (data) => {
-    console.log(`data ${JSON.stringify(data)}`)
     messageReceived = data
     writeStream(writer, "message", data)
   })

@@ -1,5 +1,3 @@
-#proto-loader-gen-types --long=String --enums=String --defaults --oneofs --grpcLib=@grpc/grpc-js --outDir=./src/grpc/rpc ./proto/*.proto /// to makefile
-
 createmigration:
 	todo
 
