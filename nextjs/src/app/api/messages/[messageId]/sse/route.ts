@@ -1,18 +1,30 @@
 import { NextRequest } from "next/server"
 import { prisma } from "@/app/prisma/prisma"
 import { ChatServiceClientFactory } from "@/grpc/chat-service-client"
+import { getToken } from "next-auth/jwt"
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { messageId: string } },
 ) {
+  const transformStream = new TransformStream()
+  const writer = transformStream.writable.getWriter()
+  const token = await getToken({ req: request })
+  if (!token) {
+    writeStream(writer, "error", "Unauthenticated")
+    writer.close()
+    return response(transformStream, 401)
+  }
   const message = await prisma.message.findUniqueOrThrow({
     where: { id: params.messageId },
     include: { chat: true },
   })
+  if (message.chat.user_id !== token.sub) {
+    writeStream(writer, "error", "Not Found")
+    writer.close()
+    return response(transformStream, 404)
+  }
 
-  const transformStream = new TransformStream()
-  const writer = transformStream.writable.getWriter()
   if (message.has_answered) {
     writeStream(writer, "error", "Message already answered")
     writer.close()
@@ -29,7 +41,7 @@ export async function GET(
   const grpcStream = chatServiceClient.chatStream({
     message: message.content,
     chat_id: message.chat.remote_chat_id,
-    user_id: "1", //this will come from auth
+    user_id: token.sub, //this will come from auth
   })
   let messageReceived: MessageReceived = null
   grpcStream.on("data", (data) => {

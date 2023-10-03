@@ -23,15 +23,6 @@ export class ChatServiceClient {
       },
       metadata,
     )
-    // stream.on("data", (response) => {
-    //   console.log(response)
-    // })
-    // stream.on("error", (error) => {
-    //   console.log(error)
-    // })
-    // stream.on("end", () => {
-    //   console.log("end")
-    // })
     return stream
   }
 }

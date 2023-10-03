@@ -9,6 +9,8 @@ services:
     ports:
       - "8081:8080"
       - "50052:50051"
+    entrypoint: go run cmd/chatservice/main.go
+
   mysql:
     image: mysql:8
     container_name: mysql

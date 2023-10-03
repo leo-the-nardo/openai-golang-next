@@ -14,6 +14,8 @@ import { UserIcon } from "@/app/components/UserIcon"
 import { marked } from "marked"
 import hljs from "highlight.js"
 import DOMPurify from "dompurify"
+import { LogoutIcon } from "@/app/components/LogoutIcon"
+import { signOut } from "next-auth/react"
 
 const renderer = new marked.Renderer()
 
@@ -230,6 +232,17 @@ export default function Home() {
     setQuestionId(null)
   }
 
+  async function logout() {
+    await signOut({ redirect: false })
+    const searchParams = new URLSearchParams({
+      redirect: window.location.origin,
+    })
+    const { url: logoutUrl } = await ClientHttp.get(
+      `logout-url?${searchParams}`,
+    )
+    window.location.href = logoutUrl
+  }
+
   return (
     <div className="relative flex h-full w-full overflow-hidden">
       {/* -- sidebar -- */}
@@ -260,6 +273,13 @@ export default function Home() {
             </div>
           ))}
         </div>
+        <button
+          className="mt-1 flex gap-3 rounded p-3 text-sm text-white hover:bg-gray-500/10"
+          onClick={() => logout()}
+        >
+          <LogoutIcon className="h-5 w-5" />
+          Log out
+        </button>
       </div>
       {/* -- end sidebar -- */}
 
